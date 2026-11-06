@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>DevOps Pipeline Playground</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <div class="bg-grid"></div>
+  <div class="glow glow-1"></div>
+  <div class="glow glow-2"></div>
+
+  <header class="hero">
+    <div class="badge"><span class="dot"></span> <span id="env">local</span> · live</div>
+    <h1>DevOps Pipeline <span class="grad">Playground</span></h1>
+    <p class="sub">A Node.js app that travels from <b>git push</b> to <b>Amazon EKS</b> through GitHub Actions, SonarCloud, Docker and ECR.</p>
+  </header>
+
+  <main>
+    <section class="cards">
+      <div class="card"><div class="label">Version</div><div class="value" id="version">–</div></div>
+      <div class="card"><div class="label">Commit</div><div class="value mono" id="commit">–</div></div>
+      <div class="card"><div class="label">Pod / Host</div><div class="value mono small" id="hostname">–</div></div>
+      <div class="card"><div class="label">Uptime</div><div class="value" id="uptime">–</div></div>
+      <div class="card"><div class="label">Node.js</div><div class="value" id="node">–</div></div>
+      <div class="card"><div class="label">Built at</div><div class="value small" id="builtAt">–</div></div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <h2>CI/CD pipeline</h2>
+        <button id="run" class="btn">▶ Simulate run</button>
+      </div>
+      <ol class="pipeline" id="pipeline"></ol>
+      <p class="hint">This is a visual simulation. The real pipeline lives in <code>.github/workflows/ci-cd.yml</code>.</p>
+    </section>
+
+    <section class="panel two-col">
+      <div>
+        <h2>Try the API</h2>
+        <form id="echo-form" class="echo">
+          <input id="echo-input" placeholder="Type a message…" autocomplete="off" />
+          <button class="btn" type="submit">POST /api/echo</button>
+        </form>
+        <pre id="echo-out" class="out">// response appears here</pre>
+      </div>
+      <div>
+        <h2>Endpoints</h2>
+        <ul class="endpoints">
+          <li><span class="m get">GET</span><a href="/health">/health</a><em>liveness probe</em></li>
+          <li><span class="m get">GET</span><a href="/ready">/ready</a><em>readiness probe</em></li>
+          <li><span class="m get">GET</span><a href="/api/info">/api/info</a><em>build + runtime info</em></li>
+          <li><span class="m get">GET</span><a href="/api/pipeline">/api/pipeline</a><em>pipeline stages</em></li>
+          <li><span class="m post">POST</span><span>/api/echo</span><em>JSON echo</em></li>
+        </ul>
+      </div>
+    </section>
+  </main>
+
+  <footer>Refresh after a deploy to see the new commit and pod name.</footer>
+
+  <script src="/app.js"></script>
+</body>
+</html>

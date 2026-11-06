@@ -1,0 +1,11 @@
+node_modules
+coverage
+dist
+.git
+.github
+k8s
+tests
+*.md
+.env*
+Dockerfile
+.dockerignore
