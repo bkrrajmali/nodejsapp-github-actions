@@ -9,7 +9,6 @@ env:
   ECR_REPOSITORY: devops-node-app
   EKS_CLUSTER: practice-eks
 
-
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -77,7 +76,6 @@ jobs:
       - name: CheckOut Code
         uses: actions/checkout@v4
 
-      # ---- Step 5: build and test the image ----
       - name: Docker Build
         run: docker build -t nodeapp:v1 .
 
@@ -148,15 +146,11 @@ jobs:
           aws eks update-kubeconfig --region $AWS_REGION --name $EKS_CLUSTER
           kubectl get pods
 
-      - name: Set the image in the manifest
-        run: |
-          IMAGE=$ECR_REGISTRY/$ECR_REPOSITORY:${GITHUB_SHA::7}
-          sed -i "s|IMAGE_PLACEHOLDER|$IMAGE|g" k8s/nodeapp-deployment.yaml
-          echo "Deploying image: $IMAGE"
-          grep "image:" k8s/nodeapp-deployment.yaml
-
       - name: Deploy to EKS
         run: kubectl apply -f k8s/nodeapp-deployment.yaml
+
+      - name: Restart pods to pull the new latest image
+        run: kubectl rollout restart deployment/devops-node-app
 
       - name: Wait for rollout
         run: kubectl rollout status deployment/devops-node-app --timeout=180s
