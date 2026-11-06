@@ -14,7 +14,8 @@ spec:
     spec:
       containers:
         - name: devops-node-app
-          image: IMAGE_PLACEHOLDER
+          image: 175157388210.dkr.ecr.ap-south-1.amazonaws.com/devops-node-app:latest
+          imagePullPolicy: Always
           ports:
             - containerPort: 3000
 ---
