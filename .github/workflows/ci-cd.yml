@@ -1,0 +1,158 @@
+name: My CI CD Pipeline
+
+on: 
+  workflow_dispatch:
+
+env:
+  AWS_REGION: ap-south-1
+  ECR_REGISTRY: 175157388210.dkr.ecr.ap-south-1.amazonaws.com
+  ECR_REPOSITORY: devops-node-app
+
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: CheckOut Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Validate (lint)
+        run: npm run validate
+
+      - name: Save build output
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-output
+          path: |
+            dist/
+            coverage/lcov.info
+          retention-days: 7
+  sonar:
+    runs-on: ubuntu-latest
+    needs: build
+
+    steps:
+      - name: CheckOut Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download build output
+        uses: actions/download-artifact@v4
+        with:
+          name: build-output
+      - name: SonarCloud scan
+        uses: SonarSource/sonarqube-scan-action@v5
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: https://sonarcloud.io
+      docker:
+    runs-on: ubuntu-latest
+    needs: [build, sonar]
+
+    steps:
+      - name: CheckOut Code
+        uses: actions/checkout@v4
+
+      # ---- Step 5: build and test the image ----
+      - name: Docker Build
+        run: docker build -t nodeapp:v1 .
+
+      - name: Show the image
+        run: docker images nodeapp
+
+      - name: Smoke test container
+        run: |
+          docker run -d --name smoke -p 3000:3000 nodeapp:v1
+          for i in $(seq 1 15); do
+            if curl -fs http://localhost:3000/health; then
+              echo ""
+              echo "Container is healthy"
+              exit 0
+            fi
+            echo "waiting for app... ($i)"
+            sleep 1
+          done
+          echo " App did not start. Container logs:"
+          docker logs smoke
+          exit 1
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Who am I in AWS
+        run: aws sts get-caller-identity
+ 
+      - name: Login to Amazon ECR
+        run: |
+          aws ecr get-login-password --region $AWS_REGION | \
+            docker login --username AWS --password-stdin $ECR_REGISTRY
+ 
+      - name: Tag and push image to ECR
+        run: |
+          IMAGE=$ECR_REGISTRY/$ECR_REPOSITORY
+          SHORT_SHA=${GITHUB_SHA::7}
+ 
+          docker tag nodeapp:v1 $IMAGE:latest
+          docker tag nodeapp:v1 $IMAGE:$SHORT_SHA
+ 
+          docker push $IMAGE:latest
+          docker push $IMAGE:$SHORT_SHA
+ 
+          echo "Pushed $IMAGE:latest and $IMAGE:$SHORT_SHA"
+
+        deploy:
+    runs-on: ubuntu-latest
+    needs: docker
+
+    steps:
+      - name: CheckOut Code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Connect kubectl to EKS
+        run: |
+          aws eks update-kubeconfig --region $AWS_REGION --name $EKS_CLUSTER
+          kubectl get pods
+
+      - name: Set the image in the manifest
+        run: |
+          IMAGE=$ECR_REGISTRY/$ECR_REPOSITORY:${GITHUB_SHA::7}
+          sed -i "s|IMAGE_PLACEHOLDER|$IMAGE|g" k8s/nodeapp-deployment.yaml
+          echo "Deploying image: $IMAGE"
+          grep "image:" k8s/nodeapp-deployment.yaml
+
+      - name: Deploy to EKS
+        run: kubectl apply -f k8s/nodeapp-deployment.yaml
+
+      - name: Wait for rollout
+        run: kubectl rollout status deployment/devops-node-app --timeout=180s
+
+      - name: Show pods and app URL
+        run: |
+          kubectl get pods -l app=devops-node-app -o wide
+          kubectl get svc devops-node-app
+          HOST=$(kubectl get svc devops-node-app -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
+          echo "App URL: http://$HOST"
+  
+        
